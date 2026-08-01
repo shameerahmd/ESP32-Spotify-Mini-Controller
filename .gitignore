@@ -22,3 +22,9 @@ __pycache__/
 # Operating system files
 .DS_Store
 Thumbs.db
+# DeskSync local database
+bridge/data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
