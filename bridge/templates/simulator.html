@@ -175,16 +175,24 @@
     </div>
 
     <script>
-      const screens = ["spotify", "clock", "lyrics", "system", "status"];
+      const screens = [
+    "spotify",
+    "clock",
+    "lyrics",
+    "system",
+    "notifications",
+    "status"
+];
+
 
       const screenLabels = {
-        spotify: "Spotify",
-        clock: "Clock",
-        lyrics: "Lyrics",
-        system: "PC Monitor",
-        status: "DeskSync Status",
-      };
-
+    spotify: "Spotify",
+    clock: "Clock",
+    lyrics: "Lyrics",
+    system: "PC Monitor",
+    notifications: "Notifications",
+    status: "DeskSync Status"
+};
       const systemMetrics = [
         "cpu",
         "memory",
@@ -203,6 +211,9 @@
       let lyricManualMode = false;
       let lyricIndex = 0;
       let automaticLyricIndex = 0;
+
+      let notificationIndex = 0;
+let currentNotificationId = null;
 
       const screenElement = document.getElementById("screen");
 
@@ -568,6 +579,81 @@
         `;
       }
 
+      async function showNotifications() {
+    const result = await fetchJson(
+        "/notifications?index=" + notificationIndex
+    );
+
+    const data = result.data;
+
+    if (
+        !result.ok ||
+        data.status === "empty" ||
+        !data.notification
+    ) {
+        currentNotificationId = null;
+        notificationIndex = 0;
+
+        screenElement.innerHTML = `
+            <div class="screen-title">
+                Notifications
+            </div>
+
+            <div class="main-text">
+                No Notifications
+            </div>
+
+            <div class="small-text">
+                New PC notifications will appear here.
+            </div>
+        `;
+
+        return;
+    }
+
+    const notification = data.notification;
+
+    notificationIndex =
+        Number(notification.index || 0);
+
+    currentNotificationId =
+        notification.id;
+
+    screenElement.innerHTML = `
+        <div class="screen-title">
+            Notifications —
+            ${notification.read ? "Read" : "Unread"}
+        </div>
+
+        <div class="main-text">
+            ${escapeHtml(notification.title)}
+        </div>
+
+        <div class="secondary-text">
+            ${escapeHtml(notification.message)}
+        </div>
+
+        <div class="small-text">
+            Source:
+            ${escapeHtml(notification.source)}
+            <br><br>
+
+            Created:
+            ${escapeHtml(notification.created_at)}
+            <br><br>
+
+            Notification:
+            ${notification.index + 1}
+            /
+            ${notification.count}
+            <br>
+
+            Unread:
+            ${data.unread_count}
+        </div>
+    `;
+}
+
       async function showDeskSyncStatus() {
         const songResult = await fetchJson("/song");
 
@@ -628,10 +714,15 @@
           await showSystemMonitor();
         }
 
+if (screen === "notifications") {
+    await showNotifications();
+}
+
         if (screen === "status") {
           await showDeskSyncStatus();
         }
-      }
+    }
+
 
       async function previousScreen() {
         screenIndex = (screenIndex - 1 + screens.length) % screens.length;

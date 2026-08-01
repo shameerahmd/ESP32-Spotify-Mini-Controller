@@ -7,7 +7,13 @@ from lyrics_service import (
 )
 from spotify import sp
 from system_monitor import get_system_stats
-
+from notification_store import (
+    add_notification,
+    clear_notifications,
+    get_notification,
+    mark_notification_read,
+    unread_count,
+)
 
 app = Flask(__name__)
 
@@ -242,10 +248,120 @@ def current_lyrics():
         "lyrics": lyric_window,
     })
 
+@app.route("/notifications", methods=["GET"])
+def notification_details():
+    notification_index = request.args.get(
+        "index",
+        default=0,
+        type=int,
+    )
 
+    notification = get_notification(
+        notification_index
+    )
+
+    if notification is None:
+        return jsonify({
+            "status": "empty",
+            "notification": None,
+            "unread_count": 0,
+        })
+
+    return jsonify({
+        "status": "online",
+        "notification": notification,
+        "unread_count": unread_count(),
+    })
+
+
+@app.route("/notifications", methods=["POST"])
+def create_notification():
+    payload = request.get_json(
+        silent=True
+    ) or {}
+
+    title = str(
+        payload.get("title", "")
+    ).strip()
+
+    message = str(
+        payload.get("message", "")
+    ).strip()
+
+    source = str(
+        payload.get("source", "DeskSync")
+    ).strip() or "DeskSync"
+
+    if not title:
+        return jsonify({
+            "status": "error",
+            "message": "Notification title is required.",
+        }), 400
+
+    if not message:
+        return jsonify({
+            "status": "error",
+            "message": "Notification message is required.",
+        }), 400
+
+    notification = add_notification(
+        title=title,
+        message=message,
+        source=source,
+    )
+
+    return jsonify({
+        "status": "created",
+        "notification": notification,
+        "unread_count": unread_count(),
+    }), 201
+
+
+@app.route("/notifications/read", methods=["POST"])
+def read_notification():
+    payload = request.get_json(
+        silent=True
+    ) or {}
+
+    notification_id = str(
+        payload.get("id", "")
+    ).strip()
+
+    if not notification_id:
+        return jsonify({
+            "status": "error",
+            "message": "Notification ID is required.",
+        }), 400
+
+    notification = mark_notification_read(
+        notification_id
+    )
+
+    if notification is None:
+        return jsonify({
+            "status": "not_found",
+            "message": "Notification was not found.",
+        }), 404
+
+    return jsonify({
+        "status": "success",
+        "notification": notification,
+        "unread_count": unread_count(),
+    })
+
+
+@app.route("/notifications", methods=["DELETE"])
+def delete_all_notifications():
+    deleted_count = clear_notifications()
+
+    return jsonify({
+        "status": "success",
+        "deleted_count": deleted_count,
+        "unread_count": 0,
+    })
 if __name__ == "__main__":
-    app.run(
+        app.run(
         host="0.0.0.0",
         port=5000,
         debug=True,
-    )
+)
