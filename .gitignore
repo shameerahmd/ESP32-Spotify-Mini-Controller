@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Spotify authentication token
+.cache
+.cache-*
+
+# Secret environment files
+.env
+**/.env
+
+# PlatformIO
+.pio/
+**/.pio/
+
+# VS Code
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
