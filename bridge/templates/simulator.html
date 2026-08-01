@@ -163,20 +163,23 @@
         <button id="centerButton">●</button>
         <button id="rightButton">▶</button>
       </div>
-
-      <div class="instructions">
-        Short press performs the current screen action.<br />
-        Long Left: Previous screen<br />
-        Long Right: Next screen<br />
-        Long Centre: Return to Spotify
+<div class="instructions">
+    Short press performs the current screen action.<br>
+    Clock: Left = 12/24h, Centre = Seconds,
+    Right = Date format<br>
+    Long Left: Previous screen<br>
+    Long Right: Next screen<br>
+    Long Centre: Return to Spotify
+</div>
       </div>
     </div>
 
     <script>
-      const screens = ["spotify", "lyrics", "system", "status"];
+      const screens = ["spotify", "clock", "lyrics", "system", "status"];
 
       const screenLabels = {
         spotify: "Spotify",
+        clock: "Clock",
         lyrics: "Lyrics",
         system: "PC Monitor",
         status: "DeskSync Status",
@@ -193,6 +196,9 @@
 
       let screenIndex = 0;
       let systemMetricIndex = 0;
+      let clockUse24Hour = false;
+      let clockShowSeconds = true;
+      let clockCompactDate = false;
 
       let lyricManualMode = false;
       let lyricIndex = 0;
@@ -260,7 +266,80 @@
         await fetchJson(endpoint);
         await refreshCurrentScreen();
       }
+      function showClock() {
+        const now = new Date();
 
+        const timeOptions = {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: !clockUse24Hour,
+        };
+
+        if (clockShowSeconds) {
+          timeOptions.second = "2-digit";
+        }
+
+        const timeText = now.toLocaleTimeString(undefined, timeOptions);
+
+        let dateText;
+
+        if (clockCompactDate) {
+          dateText = now.toLocaleDateString(undefined, {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+        } else {
+          dateText = now.toLocaleDateString(undefined, {
+            weekday: "long",
+            day: "2-digit",
+            month: "long",
+            year: "numeric",
+          });
+        }
+
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        connectionStatusElement.textContent = "Local Clock";
+
+        connectionStatusElement.className = "online";
+
+        screenElement.innerHTML = `
+        <div class="screen-title">
+            DeskSync Clock
+        </div>
+
+        <div
+            class="main-text"
+            style="
+                font-size: 42px;
+                text-align: center;
+                margin-top: 32px;
+            "
+        >
+            ${escapeHtml(timeText)}
+        </div>
+
+        <div
+            class="secondary-text"
+            style="
+                text-align: center;
+                margin-top: 18px;
+            "
+        >
+            ${escapeHtml(dateText)}
+        </div>
+
+        <div
+            class="small-text"
+            style="text-align: center;"
+        >
+            ${escapeHtml(timezone)}
+            <br>
+            ${clockUse24Hour ? "24-hour format" : "12-hour format"}
+        </div>
+    `;
+      }
       async function showSpotify() {
         const result = await fetchJson("/song");
 
@@ -538,7 +617,9 @@
         if (screen === "spotify") {
           await showSpotify();
         }
-
+        if (screen === "clock") {
+          showClock();
+        }
         if (screen === "lyrics") {
           await showLyrics();
         }
@@ -576,7 +657,12 @@
           await callSpotifyCommand("/previous");
           return;
         }
+        if (screen === "clock") {
+          clockUse24Hour = !clockUse24Hour;
 
+          showClock();
+          return;
+        }
         if (screen === "lyrics") {
           if (!lyricManualMode) {
             lyricManualMode = true;
@@ -608,7 +694,12 @@
           await callSpotifyCommand("/toggle");
           return;
         }
+        if (screen === "clock") {
+          clockShowSeconds = !clockShowSeconds;
 
+          showClock();
+          return;
+        }
         if (screen === "lyrics") {
           lyricManualMode = !lyricManualMode;
 
@@ -630,7 +721,12 @@
           await callSpotifyCommand("/next");
           return;
         }
+        if (screen === "clock") {
+          clockCompactDate = !clockCompactDate;
 
+          showClock();
+          return;
+        }
         if (screen === "lyrics") {
           if (!lyricManualMode) {
             lyricManualMode = true;
@@ -692,7 +788,11 @@
       configureButton("rightButton", rightShortPress, nextScreen);
 
       refreshCurrentScreen();
-
+      setInterval(() => {
+        if (currentScreen() === "clock") {
+          showClock();
+        }
+      }, 1000);
       setInterval(() => {
         const screen = currentScreen();
 
