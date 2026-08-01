@@ -1,0 +1,705 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>DeskSync Simulator</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #111827;
+        color: #f9fafb;
+        font-family: Arial, sans-serif;
+      }
+
+      .device {
+        width: 390px;
+        padding: 24px;
+        border-radius: 24px;
+        background: #1f2937;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      }
+
+      h1 {
+        margin: 0 0 16px;
+        text-align: center;
+        font-size: 22px;
+      }
+
+      .status-bar {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 10px;
+        color: #9ca3af;
+        font-size: 12px;
+      }
+
+      .screen {
+        min-height: 250px;
+        padding: 18px;
+        border: 3px solid #374151;
+        border-radius: 12px;
+        background: #030712;
+        color: #f9fafb;
+        overflow-wrap: anywhere;
+      }
+
+      .screen-title {
+        color: #60a5fa;
+        font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+
+      .main-text {
+        margin-top: 18px;
+        font-size: 22px;
+        font-weight: bold;
+      }
+
+      .secondary-text {
+        margin-top: 8px;
+        color: #d1d5db;
+        font-size: 16px;
+      }
+
+      .small-text {
+        margin-top: 16px;
+        color: #9ca3af;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
+      .lyric-current {
+        margin: 20px 0;
+        font-size: 20px;
+        font-weight: bold;
+        color: #fbbf24;
+      }
+
+      .progress-container {
+        height: 8px;
+        margin-top: 22px;
+        overflow: hidden;
+        border-radius: 8px;
+        background: #374151;
+      }
+
+      .progress-bar {
+        height: 100%;
+        width: 0;
+        background: #3b82f6;
+        transition: width 0.3s;
+      }
+
+      .buttons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin-top: 20px;
+      }
+
+      button {
+        height: 58px;
+        border: none;
+        border-radius: 14px;
+        background: #374151;
+        color: white;
+        font-size: 22px;
+        cursor: pointer;
+        user-select: none;
+        touch-action: none;
+      }
+
+      button:hover {
+        background: #4b5563;
+      }
+
+      button:active {
+        transform: scale(0.96);
+        background: #2563eb;
+      }
+
+      .instructions {
+        margin-top: 18px;
+        color: #9ca3af;
+        font-size: 12px;
+        line-height: 1.6;
+      }
+
+      .online {
+        color: #34d399;
+      }
+
+      .offline {
+        color: #f87171;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="device">
+      <h1>DeskSync Simulator</h1>
+
+      <div class="status-bar">
+        <span id="screenName">Spotify</span>
+        <span id="connectionStatus">Connecting...</span>
+      </div>
+
+      <div class="screen" id="screen">Loading DeskSync...</div>
+
+      <div class="buttons">
+        <button id="leftButton">◀</button>
+        <button id="centerButton">●</button>
+        <button id="rightButton">▶</button>
+      </div>
+
+      <div class="instructions">
+        Short press performs the current screen action.<br />
+        Long Left: Previous screen<br />
+        Long Right: Next screen<br />
+        Long Centre: Return to Spotify
+      </div>
+    </div>
+
+    <script>
+      const screens = ["spotify", "lyrics", "system", "status"];
+
+      const screenLabels = {
+        spotify: "Spotify",
+        lyrics: "Lyrics",
+        system: "PC Monitor",
+        status: "DeskSync Status",
+      };
+
+      const systemMetrics = [
+        "cpu",
+        "memory",
+        "disk",
+        "battery",
+        "network",
+        "uptime",
+      ];
+
+      let screenIndex = 0;
+      let systemMetricIndex = 0;
+
+      let lyricManualMode = false;
+      let lyricIndex = 0;
+      let automaticLyricIndex = 0;
+
+      const screenElement = document.getElementById("screen");
+
+      const screenNameElement = document.getElementById("screenName");
+
+      const connectionStatusElement =
+        document.getElementById("connectionStatus");
+
+      function currentScreen() {
+        return screens[screenIndex];
+      }
+
+      function formatTime(milliseconds) {
+        const totalSeconds = Math.floor((milliseconds || 0) / 1000);
+
+        const minutes = Math.floor(totalSeconds / 60);
+
+        const seconds = totalSeconds % 60;
+
+        return String(minutes) + ":" + String(seconds).padStart(2, "0");
+      }
+
+      function escapeHtml(value) {
+        const element = document.createElement("div");
+
+        element.textContent =
+          value === null || value === undefined ? "" : String(value);
+
+        return element.innerHTML;
+      }
+
+      async function fetchJson(url) {
+        try {
+          const response = await fetch(url);
+
+          const data = await response.json();
+
+          connectionStatusElement.textContent = "Bridge Online";
+
+          connectionStatusElement.className = "online";
+
+          return {
+            ok: response.ok,
+            data: data,
+          };
+        } catch (error) {
+          connectionStatusElement.textContent = "Bridge Offline";
+
+          connectionStatusElement.className = "offline";
+
+          return {
+            ok: false,
+            data: {
+              message: error.message,
+            },
+          };
+        }
+      }
+
+      async function callSpotifyCommand(endpoint) {
+        await fetchJson(endpoint);
+        await refreshCurrentScreen();
+      }
+
+      async function showSpotify() {
+        const result = await fetchJson("/song");
+
+        const data = result.data;
+
+        if (!result.ok || data.status !== "online") {
+          screenElement.innerHTML = `
+                <div class="screen-title">
+                    Spotify
+                </div>
+
+                <div class="main-text">
+                    Spotify Offline
+                </div>
+
+                <div class="small-text">
+                    Open Spotify and start playing a song.
+                </div>
+            `;
+
+          return;
+        }
+
+        const progress = Number(data.progress || 0);
+
+        const duration = Number(data.duration || 0);
+
+        const progressPercent =
+          duration > 0 ? Math.min(100, (progress / duration) * 100) : 0;
+
+        screenElement.innerHTML = `
+            <div class="screen-title">
+                Now Playing
+            </div>
+
+            <div class="main-text">
+                ${escapeHtml(data.title)}
+            </div>
+
+            <div class="secondary-text">
+                ${escapeHtml(data.artist)}
+            </div>
+
+            <div class="small-text">
+                ${data.playing ? "▶ Playing" : "⏸ Paused"}
+                <br>
+                ${formatTime(progress)}
+                /
+                ${formatTime(duration)}
+                <br>
+                Volume:
+                ${data.volume ?? "--"}%
+                <br>
+                Device:
+                ${escapeHtml(data.device || "Unknown")}
+            </div>
+
+            <div class="progress-container">
+                <div
+                    class="progress-bar"
+                    style="width: ${progressPercent}%"
+                ></div>
+            </div>
+        `;
+      }
+
+      async function showLyrics() {
+        let endpoint = "/lyrics";
+
+        if (lyricManualMode) {
+          endpoint += "?index=" + lyricIndex;
+        }
+
+        const result = await fetchJson(endpoint);
+
+        const data = result.data;
+
+        if (!result.ok || data.status !== "online") {
+          screenElement.innerHTML = `
+                <div class="screen-title">
+                    Lyrics
+                </div>
+
+                <div class="main-text">
+                    Lyrics Unavailable
+                </div>
+
+                <div class="small-text">
+                    ${escapeHtml(data.message || "Lyrics were not found.")}
+                </div>
+            `;
+
+          return;
+        }
+
+        const lyrics = data.lyrics || {};
+
+        automaticLyricIndex = Number(lyrics.index || 0);
+
+        if (!lyricManualMode) {
+          lyricIndex = automaticLyricIndex;
+        }
+
+        screenElement.innerHTML = `
+            <div class="screen-title">
+                Lyrics —
+                ${lyricManualMode ? "Manual" : "Automatic"}
+            </div>
+
+            <div class="small-text">
+                ${escapeHtml(lyrics.previous || "")}
+            </div>
+
+            <div class="lyric-current">
+                ${escapeHtml(lyrics.current || "Waiting for lyric...")}
+            </div>
+
+            <div class="small-text">
+                ${escapeHtml(lyrics.next || "")}
+            </div>
+
+            <div class="small-text">
+                Line:
+                ${Number(lyrics.index || 0) + 1}
+                /
+                ${lyrics.line_count || 0}
+                <br>
+                ${escapeHtml(data.title)}
+            </div>
+        `;
+      }
+
+      async function showSystemMonitor() {
+        const result = await fetchJson("/system");
+
+        const data = result.data;
+
+        if (!result.ok || !data.pc) {
+          screenElement.innerHTML = `
+                <div class="screen-title">
+                    PC Monitor
+                </div>
+
+                <div class="main-text">
+                    System Data Unavailable
+                </div>
+            `;
+
+          return;
+        }
+
+        const pc = data.pc;
+
+        const metric = systemMetrics[systemMetricIndex];
+
+        let mainText = "";
+        let details = "";
+
+        if (metric === "cpu") {
+          mainText = `${pc.cpu.percent}% CPU`;
+
+          details = `Physical cores: ${pc.cpu.physical_cores}
+                 <br>
+                 Logical cores: ${pc.cpu.logical_cores}`;
+        }
+
+        if (metric === "memory") {
+          mainText = `${pc.memory.percent}% RAM`;
+
+          details = `${pc.memory.used_gb} GB used
+                 <br>
+                 ${pc.memory.available_gb} GB available
+                 <br>
+                 ${pc.memory.total_gb} GB total`;
+        }
+
+        if (metric === "disk") {
+          mainText = `${pc.disk.percent}% Disk`;
+
+          details = `${pc.disk.used_gb} GB used
+                 <br>
+                 ${pc.disk.free_gb} GB free
+                 <br>
+                 Drive: ${pc.disk.drive}`;
+        }
+
+        if (metric === "battery") {
+          if (pc.battery) {
+            mainText = `${pc.battery.percent}% Battery`;
+
+            details = pc.battery.charging ? "Charging" : "Not charging";
+          } else {
+            mainText = "Battery Unavailable";
+
+            details = "This computer may not have a battery.";
+          }
+        }
+
+        if (metric === "network") {
+          mainText = "Network Usage";
+
+          details = `${pc.network.received_mb} MB received
+                 <br>
+                 ${pc.network.sent_mb} MB sent`;
+        }
+
+        if (metric === "uptime") {
+          mainText = "PC Uptime";
+
+          details = pc.uptime.readable;
+        }
+
+        screenElement.innerHTML = `
+            <div class="screen-title">
+                PC Monitor —
+                ${metric.toUpperCase()}
+            </div>
+
+            <div class="main-text">
+                ${mainText}
+            </div>
+
+            <div class="small-text">
+                ${details}
+            </div>
+        `;
+      }
+
+      async function showDeskSyncStatus() {
+        const songResult = await fetchJson("/song");
+
+        const systemResult = await fetchJson("/system");
+
+        const spotifyOnline = songResult.data.status === "online";
+
+        const pcOnline = Boolean(systemResult.data.pc);
+
+        screenElement.innerHTML = `
+            <div class="screen-title">
+                DeskSync Status
+            </div>
+
+            <div class="main-text">
+                System Diagnostics
+            </div>
+
+            <div class="small-text">
+                Bridge:
+                <span class="online">Online</span>
+                <br><br>
+
+                Spotify:
+                <span class="${spotifyOnline ? "online" : "offline"}">
+                    ${spotifyOnline ? "Connected" : "Offline"}
+                </span>
+                <br><br>
+
+                PC Monitor:
+                <span class="${pcOnline ? "online" : "offline"}">
+                    ${pcOnline ? "Connected" : "Offline"}
+                </span>
+                <br><br>
+
+                Current Screen:
+                ${screenLabels[currentScreen()]}
+            </div>
+        `;
+      }
+
+      async function refreshCurrentScreen() {
+        const screen = currentScreen();
+
+        screenNameElement.textContent = screenLabels[screen];
+
+        if (screen === "spotify") {
+          await showSpotify();
+        }
+
+        if (screen === "lyrics") {
+          await showLyrics();
+        }
+
+        if (screen === "system") {
+          await showSystemMonitor();
+        }
+
+        if (screen === "status") {
+          await showDeskSyncStatus();
+        }
+      }
+
+      async function previousScreen() {
+        screenIndex = (screenIndex - 1 + screens.length) % screens.length;
+
+        await refreshCurrentScreen();
+      }
+
+      async function nextScreen() {
+        screenIndex = (screenIndex + 1) % screens.length;
+
+        await refreshCurrentScreen();
+      }
+
+      async function returnToSpotify() {
+        screenIndex = 0;
+        await refreshCurrentScreen();
+      }
+
+      async function leftShortPress() {
+        const screen = currentScreen();
+
+        if (screen === "spotify") {
+          await callSpotifyCommand("/previous");
+          return;
+        }
+
+        if (screen === "lyrics") {
+          if (!lyricManualMode) {
+            lyricManualMode = true;
+            lyricIndex = automaticLyricIndex;
+          }
+
+          lyricIndex = Math.max(0, lyricIndex - 1);
+
+          await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          systemMetricIndex =
+            (systemMetricIndex - 1 + systemMetrics.length) %
+            systemMetrics.length;
+
+          await showSystemMonitor();
+          return;
+        }
+
+        await refreshCurrentScreen();
+      }
+
+      async function centerShortPress() {
+        const screen = currentScreen();
+
+        if (screen === "spotify") {
+          await callSpotifyCommand("/toggle");
+          return;
+        }
+
+        if (screen === "lyrics") {
+          lyricManualMode = !lyricManualMode;
+
+          if (lyricManualMode) {
+            lyricIndex = automaticLyricIndex;
+          }
+
+          await showLyrics();
+          return;
+        }
+
+        await refreshCurrentScreen();
+      }
+
+      async function rightShortPress() {
+        const screen = currentScreen();
+
+        if (screen === "spotify") {
+          await callSpotifyCommand("/next");
+          return;
+        }
+
+        if (screen === "lyrics") {
+          if (!lyricManualMode) {
+            lyricManualMode = true;
+            lyricIndex = automaticLyricIndex;
+          }
+
+          lyricIndex += 1;
+
+          await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          systemMetricIndex = (systemMetricIndex + 1) % systemMetrics.length;
+
+          await showSystemMonitor();
+          return;
+        }
+
+        await refreshCurrentScreen();
+      }
+
+      function configureButton(buttonId, shortPressAction, longPressAction) {
+        const button = document.getElementById(buttonId);
+
+        let timer = null;
+        let longPressTriggered = false;
+
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+
+          longPressTriggered = false;
+
+          timer = setTimeout(async () => {
+            longPressTriggered = true;
+            await longPressAction();
+          }, 700);
+        });
+
+        button.addEventListener("pointerup", async (event) => {
+          event.preventDefault();
+
+          clearTimeout(timer);
+
+          if (!longPressTriggered) {
+            await shortPressAction();
+          }
+        });
+
+        button.addEventListener("pointerleave", () => {
+          clearTimeout(timer);
+        });
+      }
+
+      configureButton("leftButton", leftShortPress, previousScreen);
+
+      configureButton("centerButton", centerShortPress, returnToSpotify);
+
+      configureButton("rightButton", rightShortPress, nextScreen);
+
+      refreshCurrentScreen();
+
+      setInterval(() => {
+        const screen = currentScreen();
+
+        if (screen === "spotify" || (screen === "lyrics" && !lyricManualMode)) {
+          refreshCurrentScreen();
+        }
+      }, 2500);
+    </script>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, render_template
 
 from lyrics_service import (
     fetch_lyrics,
@@ -15,6 +15,10 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return "DeskSync Bridge Running!"
+
+@app.route("/simulator")
+def simulator():
+    return render_template("simulator.html")
 
 
 @app.route("/song")
