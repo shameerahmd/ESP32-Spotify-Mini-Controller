@@ -2,6 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
     <title>DeskSync Simulator</title>
@@ -17,14 +18,17 @@
         display: flex;
         align-items: center;
         justify-content: center;
+        padding: 20px;
         background: #111827;
         color: #f9fafb;
-        font-family: Arial, sans-serif;
+        font-family: Arial, Helvetica, sans-serif;
       }
 
       .device {
         width: 390px;
+        max-width: 100%;
         padding: 24px;
+        border: 1px solid #374151;
         border-radius: 24px;
         background: #1f2937;
         box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
@@ -39,24 +43,31 @@
       .status-bar {
         display: flex;
         justify-content: space-between;
+        gap: 12px;
         margin-bottom: 10px;
         color: #9ca3af;
         font-size: 12px;
       }
 
+      .status-bar span:last-child {
+        text-align: right;
+      }
+
       .screen {
         min-height: 250px;
         padding: 18px;
+        overflow: hidden;
+        overflow-wrap: anywhere;
         border: 3px solid #374151;
         border-radius: 12px;
         background: #030712;
         color: #f9fafb;
-        overflow-wrap: anywhere;
       }
 
       .screen-title {
         color: #60a5fa;
         font-size: 13px;
+        font-weight: bold;
         text-transform: uppercase;
         letter-spacing: 1px;
       }
@@ -80,11 +91,36 @@
         line-height: 1.5;
       }
 
+      .clock-time {
+        margin-top: 30px;
+        text-align: center;
+        font-size: 42px;
+        font-weight: bold;
+        white-space: nowrap;
+      }
+
+      .clock-date {
+        margin-top: 18px;
+        text-align: center;
+        color: #d1d5db;
+        font-size: 16px;
+        line-height: 1.4;
+      }
+
+      .clock-zone {
+        margin-top: 18px;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+
       .lyric-current {
         margin: 20px 0;
+        color: #fbbf24;
         font-size: 20px;
         font-weight: bold;
-        color: #fbbf24;
+        line-height: 1.35;
       }
 
       .progress-container {
@@ -96,8 +132,8 @@
       }
 
       .progress-bar {
-        height: 100%;
         width: 0;
+        height: 100%;
         background: #3b82f6;
         transition: width 0.3s;
       }
@@ -114,7 +150,7 @@
         border: none;
         border-radius: 14px;
         background: #374151;
-        color: white;
+        color: #ffffff;
         font-size: 22px;
         cursor: pointer;
         user-select: none;
@@ -134,7 +170,7 @@
         margin-top: 18px;
         color: #9ca3af;
         font-size: 12px;
-        line-height: 1.6;
+        line-height: 1.65;
       }
 
       .online {
@@ -144,10 +180,28 @@
       .offline {
         color: #f87171;
       }
+
+      .warning {
+        color: #fbbf24;
+      }
+
+      @media (max-width: 430px) {
+        body {
+          padding: 10px;
+        }
+
+        .device {
+          padding: 18px;
+        }
+
+        .clock-time {
+          font-size: 36px;
+        }
+      }
     </style>
   </head>
 
-  <body>
+  <body data-api-key="{{ api_key | e }}">
     <div class="device">
       <h1>DeskSync Simulator</h1>
 
@@ -159,40 +213,59 @@
       <div class="screen" id="screen">Loading DeskSync...</div>
 
       <div class="buttons">
-        <button id="leftButton">◀</button>
-        <button id="centerButton">●</button>
-        <button id="rightButton">▶</button>
+        <button id="leftButton" type="button" aria-label="Left button">
+          ◀
+        </button>
+
+        <button id="centerButton" type="button" aria-label="Centre button">
+          ●
+        </button>
+
+        <button id="rightButton" type="button" aria-label="Right button">
+          ▶
+        </button>
       </div>
-<div class="instructions">
-    Short press performs the current screen action.<br>
-    Clock: Left = 12/24h, Centre = Seconds,
-    Right = Date format<br>
-    Long Left: Previous screen<br>
-    Long Right: Next screen<br>
-    Long Centre: Return to Spotify
-</div>
+
+      <div class="instructions">
+        Short press performs the current screen action.<br />
+
+        Spotify: Left = Previous, Centre = Play/Pause, Right = Next<br />
+
+        Clock: Left = 12/24h, Centre = Seconds, Right = Date format<br />
+
+        Lyrics: Left = Previous line, Centre = Auto/Manual, Right = Next line<br />
+
+        PC Monitor: Left/Right = Metric, Centre = Refresh<br />
+
+        Notifications: Left = Newer, Centre = Mark read, Right = Older<br />
+
+        Long Left = Previous screen<br />
+        Long Right = Next screen<br />
+        Long Centre = Return to Spotify
       </div>
     </div>
 
     <script>
-      const screens = [
-    "spotify",
-    "clock",
-    "lyrics",
-    "system",
-    "notifications",
-    "status"
-];
+      const DESKSYNC_API_KEY = document.body.dataset.apiKey || "";
 
+      const screens = [
+        "spotify",
+        "clock",
+        "lyrics",
+        "system",
+        "notifications",
+        "status",
+      ];
 
       const screenLabels = {
-    spotify: "Spotify",
-    clock: "Clock",
-    lyrics: "Lyrics",
-    system: "PC Monitor",
-    notifications: "Notifications",
-    status: "DeskSync Status"
-};
+        spotify: "Spotify",
+        clock: "Clock",
+        lyrics: "Lyrics",
+        system: "PC Monitor",
+        notifications: "Notifications",
+        status: "DeskSync Status",
+      };
+
       const systemMetrics = [
         "cpu",
         "memory",
@@ -204,6 +277,7 @@
 
       let screenIndex = 0;
       let systemMetricIndex = 0;
+
       let clockUse24Hour = false;
       let clockShowSeconds = true;
       let clockCompactDate = false;
@@ -213,7 +287,7 @@
       let automaticLyricIndex = 0;
 
       let notificationIndex = 0;
-let currentNotificationId = null;
+      let currentNotificationId = null;
 
       const screenElement = document.getElementById("screen");
 
@@ -226,8 +300,14 @@ let currentNotificationId = null;
         return screens[screenIndex];
       }
 
+      function setConnectionStatus(text, className) {
+        connectionStatusElement.textContent = text;
+
+        connectionStatusElement.className = className || "";
+      }
+
       function formatTime(milliseconds) {
-        const totalSeconds = Math.floor((milliseconds || 0) / 1000);
+        const totalSeconds = Math.floor(Number(milliseconds || 0) / 1000);
 
         const minutes = Math.floor(totalSeconds / 60);
 
@@ -245,28 +325,50 @@ let currentNotificationId = null;
         return element.innerHTML;
       }
 
-      async function fetchJson(url) {
+      async function fetchJson(url, options = {}) {
         try {
-          const response = await fetch(url);
+          const requestOptions = {
+            ...options,
+            headers: {
+              ...(options.headers || {}),
+              "X-DeskSync-Key": DESKSYNC_API_KEY,
+            },
+          };
 
-          const data = await response.json();
+          const response = await fetch(url, requestOptions);
 
-          connectionStatusElement.textContent = "Bridge Online";
+          let data;
 
-          connectionStatusElement.className = "online";
+          try {
+            data = await response.json();
+          } catch (error) {
+            data = {
+              status: "error",
+              message: "DeskSync returned an invalid response.",
+            };
+          }
+
+          if (response.status === 401) {
+            setConnectionStatus("Unauthorized", "offline");
+          } else if (response.status === 503) {
+            setConnectionStatus("API Key Missing", "warning");
+          } else {
+            setConnectionStatus("Bridge Online", "online");
+          }
 
           return {
             ok: response.ok,
+            statusCode: response.status,
             data: data,
           };
         } catch (error) {
-          connectionStatusElement.textContent = "Bridge Offline";
-
-          connectionStatusElement.className = "offline";
+          setConnectionStatus("Bridge Offline", "offline");
 
           return {
             ok: false,
+            statusCode: 0,
             data: {
+              status: "error",
               message: error.message,
             },
           };
@@ -277,6 +379,7 @@ let currentNotificationId = null;
         await fetchJson(endpoint);
         await refreshCurrentScreen();
       }
+
       function showClock() {
         const now = new Date();
 
@@ -311,50 +414,34 @@ let currentNotificationId = null;
 
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-        connectionStatusElement.textContent = "Local Clock";
-
-        connectionStatusElement.className = "online";
+        setConnectionStatus("Local Clock", "online");
 
         screenElement.innerHTML = `
-        <div class="screen-title">
-            DeskSync Clock
-        </div>
+            <div class="screen-title">
+                DeskSync Clock
+            </div>
 
-        <div
-            class="main-text"
-            style="
-                font-size: 42px;
-                text-align: center;
-                margin-top: 32px;
-            "
-        >
-            ${escapeHtml(timeText)}
-        </div>
+            <div class="clock-time">
+                ${escapeHtml(timeText)}
+            </div>
 
-        <div
-            class="secondary-text"
-            style="
-                text-align: center;
-                margin-top: 18px;
-            "
-        >
-            ${escapeHtml(dateText)}
-        </div>
+            <div class="clock-date">
+                ${escapeHtml(dateText)}
+            </div>
 
-        <div
-            class="small-text"
-            style="text-align: center;"
-        >
-            ${escapeHtml(timezone)}
-            <br>
-            ${clockUse24Hour ? "24-hour format" : "12-hour format"}
-        </div>
-    `;
+            <div class="clock-zone">
+                ${escapeHtml(timezone)}
+                <br>
+
+                ${clockUse24Hour ? "24-hour format" : "12-hour format"}
+            </div>
+        `;
       }
+
       async function showSpotify() {
         const result = await fetchJson("/song");
 
-        const data = result.data;
+        const data = result.data || {};
 
         if (!result.ok || data.status !== "online") {
           screenElement.innerHTML = `
@@ -367,7 +454,9 @@ let currentNotificationId = null;
                 </div>
 
                 <div class="small-text">
-                    Open Spotify and start playing a song.
+                    ${escapeHtml(
+                      data.message || "Open Spotify and start playing a song.",
+                    )}
                 </div>
             `;
 
@@ -379,11 +468,14 @@ let currentNotificationId = null;
         const duration = Number(data.duration || 0);
 
         const progressPercent =
-          duration > 0 ? Math.min(100, (progress / duration) * 100) : 0;
+          duration > 0
+            ? Math.min(100, Math.max(0, (progress / duration) * 100))
+            : 0;
 
         screenElement.innerHTML = `
             <div class="screen-title">
                 Now Playing
+                ${data.demo_mode ? " — Demo" : ""}
             </div>
 
             <div class="main-text">
@@ -397,13 +489,20 @@ let currentNotificationId = null;
             <div class="small-text">
                 ${data.playing ? "▶ Playing" : "⏸ Paused"}
                 <br>
+
                 ${formatTime(progress)}
                 /
                 ${formatTime(duration)}
                 <br>
+
                 Volume:
-                ${data.volume ?? "--"}%
+                ${
+                  data.volume === null || data.volume === undefined
+                    ? "--"
+                    : escapeHtml(data.volume)
+                }%
                 <br>
+
                 Device:
                 ${escapeHtml(data.device || "Unknown")}
             </div>
@@ -426,7 +525,7 @@ let currentNotificationId = null;
 
         const result = await fetchJson(endpoint);
 
-        const data = result.data;
+        const data = result.data || {};
 
         if (!result.ok || data.status !== "online") {
           screenElement.innerHTML = `
@@ -458,6 +557,7 @@ let currentNotificationId = null;
             <div class="screen-title">
                 Lyrics —
                 ${lyricManualMode ? "Manual" : "Automatic"}
+                ${data.demo_mode ? " — Demo" : ""}
             </div>
 
             <div class="small-text">
@@ -478,6 +578,7 @@ let currentNotificationId = null;
                 /
                 ${lyrics.line_count || 0}
                 <br>
+
                 ${escapeHtml(data.title)}
             </div>
         `;
@@ -486,7 +587,7 @@ let currentNotificationId = null;
       async function showSystemMonitor() {
         const result = await fetchJson("/system");
 
-        const data = result.data;
+        const data = result.data || {};
 
         if (!result.ok || !data.pc) {
           screenElement.innerHTML = `
@@ -496,6 +597,12 @@ let currentNotificationId = null;
 
                 <div class="main-text">
                     System Data Unavailable
+                </div>
+
+                <div class="small-text">
+                    ${escapeHtml(
+                      data.message || "Could not read PC system information.",
+                    )}
                 </div>
             `;
 
@@ -510,38 +617,63 @@ let currentNotificationId = null;
         let details = "";
 
         if (metric === "cpu") {
-          mainText = `${pc.cpu.percent}% CPU`;
+          const cpu = pc.cpu || {};
 
-          details = `Physical cores: ${pc.cpu.physical_cores}
-                 <br>
-                 Logical cores: ${pc.cpu.logical_cores}`;
+          mainText = `${cpu.percent ?? "--"}% CPU`;
+
+          details = `
+                Physical cores:
+                ${cpu.physical_cores ?? "--"}
+                <br>
+
+                Logical cores:
+                ${cpu.logical_cores ?? "--"}
+            `;
         }
 
         if (metric === "memory") {
-          mainText = `${pc.memory.percent}% RAM`;
+          const memory = pc.memory || {};
 
-          details = `${pc.memory.used_gb} GB used
-                 <br>
-                 ${pc.memory.available_gb} GB available
-                 <br>
-                 ${pc.memory.total_gb} GB total`;
+          mainText = `${memory.percent ?? "--"}% RAM`;
+
+          details = `
+                ${memory.used_gb ?? "--"} GB used
+                <br>
+
+                ${memory.available_gb ?? "--"} GB available
+                <br>
+
+                ${memory.total_gb ?? "--"} GB total
+            `;
         }
 
         if (metric === "disk") {
-          mainText = `${pc.disk.percent}% Disk`;
+          const disk = pc.disk || {};
 
-          details = `${pc.disk.used_gb} GB used
-                 <br>
-                 ${pc.disk.free_gb} GB free
-                 <br>
-                 Drive: ${pc.disk.drive}`;
+          mainText = `${disk.percent ?? "--"}% Disk`;
+
+          details = `
+                ${disk.used_gb ?? "--"} GB used
+                <br>
+
+                ${disk.free_gb ?? "--"} GB free
+                <br>
+
+                Drive:
+                ${escapeHtml(disk.drive || "--")}
+            `;
         }
 
         if (metric === "battery") {
-          if (pc.battery) {
-            mainText = `${pc.battery.percent}% Battery`;
+          const battery = pc.battery;
 
-            details = pc.battery.charging ? "Charging" : "Not charging";
+          if (battery) {
+            mainText = `${battery.percent ?? "--"}% Battery`;
+
+            details =
+              battery.charging || battery.plugged_in
+                ? "Charging"
+                : "Not charging";
           } else {
             mainText = "Battery Unavailable";
 
@@ -550,23 +682,31 @@ let currentNotificationId = null;
         }
 
         if (metric === "network") {
+          const network = pc.network || {};
+
           mainText = "Network Usage";
 
-          details = `${pc.network.received_mb} MB received
-                 <br>
-                 ${pc.network.sent_mb} MB sent`;
+          details = `
+                ${network.received_mb ?? "--"} MB received
+                <br>
+
+                ${network.sent_mb ?? "--"} MB sent
+            `;
         }
 
         if (metric === "uptime") {
+          const uptime = pc.uptime || {};
+
           mainText = "PC Uptime";
 
-          details = pc.uptime.readable;
+          details = escapeHtml(uptime.readable || "--");
         }
 
         screenElement.innerHTML = `
             <div class="screen-title">
                 PC Monitor —
                 ${metric.toUpperCase()}
+                ${data.demo_mode ? " — Demo" : ""}
             </div>
 
             <div class="main-text">
@@ -580,88 +720,111 @@ let currentNotificationId = null;
       }
 
       async function showNotifications() {
-    const result = await fetchJson(
-        "/notifications?index=" + notificationIndex
-    );
+        const result = await fetchJson(
+          "/notifications?index=" + notificationIndex,
+        );
 
-    const data = result.data;
+        const data = result.data || {};
 
-    if (
-        !result.ok ||
-        data.status === "empty" ||
-        !data.notification
-    ) {
-        currentNotificationId = null;
-        notificationIndex = 0;
+        if (!result.ok || data.status === "empty" || !data.notification) {
+          currentNotificationId = null;
+          notificationIndex = 0;
+
+          screenElement.innerHTML = `
+                <div class="screen-title">
+                    Notifications
+                </div>
+
+                <div class="main-text">
+                    No Notifications
+                </div>
+
+                <div class="small-text">
+                    New PC notifications will appear here.
+                </div>
+            `;
+
+          return;
+        }
+
+        const notification = data.notification;
+
+        notificationIndex = Number(notification.index || 0);
+
+        currentNotificationId = notification.id;
 
         screenElement.innerHTML = `
             <div class="screen-title">
-                Notifications
+                Notifications —
+                ${notification.read ? "Read" : "Unread"}
+                ${data.demo_mode ? " — Demo" : ""}
             </div>
 
             <div class="main-text">
-                No Notifications
+                ${escapeHtml(notification.title)}
+            </div>
+
+            <div class="secondary-text">
+                ${escapeHtml(notification.message)}
             </div>
 
             <div class="small-text">
-                New PC notifications will appear here.
+                Source:
+                ${escapeHtml(notification.source)}
+                <br><br>
+
+                Created:
+                ${escapeHtml(notification.created_at)}
+                <br><br>
+
+                Notification:
+                ${Number(notification.index || 0) + 1}
+                /
+                ${notification.count || 1}
+                <br>
+
+                Unread:
+                ${data.unread_count || 0}
             </div>
         `;
-
-        return;
-    }
-
-    const notification = data.notification;
-
-    notificationIndex =
-        Number(notification.index || 0);
-
-    currentNotificationId =
-        notification.id;
-
-    screenElement.innerHTML = `
-        <div class="screen-title">
-            Notifications —
-            ${notification.read ? "Read" : "Unread"}
-        </div>
-
-        <div class="main-text">
-            ${escapeHtml(notification.title)}
-        </div>
-
-        <div class="secondary-text">
-            ${escapeHtml(notification.message)}
-        </div>
-
-        <div class="small-text">
-            Source:
-            ${escapeHtml(notification.source)}
-            <br><br>
-
-            Created:
-            ${escapeHtml(notification.created_at)}
-            <br><br>
-
-            Notification:
-            ${notification.index + 1}
-            /
-            ${notification.count}
-            <br>
-
-            Unread:
-            ${data.unread_count}
-        </div>
-    `;
-}
+      }
 
       async function showDeskSyncStatus() {
-        const songResult = await fetchJson("/song");
+        const result = await fetchJson("/device-state");
 
-        const systemResult = await fetchJson("/system");
+        const data = result.data || {};
 
-        const spotifyOnline = songResult.data.status === "online";
+        if (!result.ok) {
+          screenElement.innerHTML = `
+                <div class="screen-title">
+                    DeskSync Status
+                </div>
 
-        const pcOnline = Boolean(systemResult.data.pc);
+                <div class="main-text">
+                    Status Unavailable
+                </div>
+
+                <div class="small-text">
+                    ${escapeHtml(
+                      data.message || "Could not read DeskSync status.",
+                    )}
+                </div>
+            `;
+
+          return;
+        }
+
+        const spotify = data.spotify || {};
+
+        const system = data.system || {};
+
+        const notifications = data.notifications || {};
+
+        const spotifyOnline = spotify.status === "online";
+
+        const systemOnline = system.status === "online";
+
+        const bridgeHealthy = data.status === "online";
 
         screenElement.innerHTML = `
             <div class="screen-title">
@@ -674,7 +837,9 @@ let currentNotificationId = null;
 
             <div class="small-text">
                 Bridge:
-                <span class="online">Online</span>
+                <span class="${bridgeHealthy ? "online" : "warning"}">
+                    ${escapeHtml(data.status || "unknown")}
+                </span>
                 <br><br>
 
                 Spotify:
@@ -684,13 +849,21 @@ let currentNotificationId = null;
                 <br><br>
 
                 PC Monitor:
-                <span class="${pcOnline ? "online" : "offline"}">
-                    ${pcOnline ? "Connected" : "Offline"}
+                <span class="${systemOnline ? "online" : "offline"}">
+                    ${systemOnline ? "Connected" : "Offline"}
                 </span>
                 <br><br>
 
+                Unread Notifications:
+                ${notifications.unread_count || 0}
+                <br><br>
+
+                Demo Mode:
+                ${data.demo_mode ? "Enabled" : "Disabled"}
+                <br><br>
+
                 Current Screen:
-                ${screenLabels[currentScreen()]}
+                ${escapeHtml(screenLabels[currentScreen()])}
             </div>
         `;
       }
@@ -702,27 +875,33 @@ let currentNotificationId = null;
 
         if (screen === "spotify") {
           await showSpotify();
+          return;
         }
+
         if (screen === "clock") {
           showClock();
+          return;
         }
+
         if (screen === "lyrics") {
           await showLyrics();
+          return;
         }
 
         if (screen === "system") {
           await showSystemMonitor();
+          return;
         }
 
-if (screen === "notifications") {
-    await showNotifications();
-}
+        if (screen === "notifications") {
+          await showNotifications();
+          return;
+        }
 
         if (screen === "status") {
           await showDeskSyncStatus();
         }
-    }
-
+      }
 
       async function previousScreen() {
         screenIndex = (screenIndex - 1 + screens.length) % screens.length;
@@ -748,12 +927,14 @@ if (screen === "notifications") {
           await callSpotifyCommand("/previous");
           return;
         }
+
         if (screen === "clock") {
           clockUse24Hour = !clockUse24Hour;
 
           showClock();
           return;
         }
+
         if (screen === "lyrics") {
           if (!lyricManualMode) {
             lyricManualMode = true;
@@ -775,6 +956,13 @@ if (screen === "notifications") {
           return;
         }
 
+        if (screen === "notifications") {
+          notificationIndex = Math.max(0, notificationIndex - 1);
+
+          await showNotifications();
+          return;
+        }
+
         await refreshCurrentScreen();
       }
 
@@ -785,12 +973,14 @@ if (screen === "notifications") {
           await callSpotifyCommand("/toggle");
           return;
         }
+
         if (screen === "clock") {
           clockShowSeconds = !clockShowSeconds;
 
           showClock();
           return;
         }
+
         if (screen === "lyrics") {
           lyricManualMode = !lyricManualMode;
 
@@ -799,6 +989,31 @@ if (screen === "notifications") {
           }
 
           await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          await showSystemMonitor();
+          return;
+        }
+
+        if (screen === "notifications") {
+          if (!currentNotificationId) {
+            await showNotifications();
+            return;
+          }
+
+          await fetchJson("/notifications/read", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: currentNotificationId,
+            }),
+          });
+
+          await showNotifications();
           return;
         }
 
@@ -812,12 +1027,14 @@ if (screen === "notifications") {
           await callSpotifyCommand("/next");
           return;
         }
+
         if (screen === "clock") {
           clockCompactDate = !clockCompactDate;
 
           showClock();
           return;
         }
+
         if (screen === "lyrics") {
           if (!lyricManualMode) {
             lyricManualMode = true;
@@ -837,6 +1054,13 @@ if (screen === "notifications") {
           return;
         }
 
+        if (screen === "notifications") {
+          notificationIndex += 1;
+
+          await showNotifications();
+          return;
+        }
+
         await refreshCurrentScreen();
       }
 
@@ -846,13 +1070,24 @@ if (screen === "notifications") {
         let timer = null;
         let longPressTriggered = false;
 
+        function cancelTimer() {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        }
+
         button.addEventListener("pointerdown", (event) => {
           event.preventDefault();
 
           longPressTriggered = false;
 
+          button.setPointerCapture(event.pointerId);
+
           timer = setTimeout(async () => {
             longPressTriggered = true;
+            timer = null;
+
             await longPressAction();
           }, 700);
         });
@@ -860,15 +1095,21 @@ if (screen === "notifications") {
         button.addEventListener("pointerup", async (event) => {
           event.preventDefault();
 
-          clearTimeout(timer);
+          cancelTimer();
+
+          if (button.hasPointerCapture(event.pointerId)) {
+            button.releasePointerCapture(event.pointerId);
+          }
 
           if (!longPressTriggered) {
             await shortPressAction();
           }
         });
 
-        button.addEventListener("pointerleave", () => {
-          clearTimeout(timer);
+        button.addEventListener("pointercancel", cancelTimer);
+
+        button.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
         });
       }
 
@@ -879,11 +1120,13 @@ if (screen === "notifications") {
       configureButton("rightButton", rightShortPress, nextScreen);
 
       refreshCurrentScreen();
+
       setInterval(() => {
         if (currentScreen() === "clock") {
           showClock();
         }
       }, 1000);
+
       setInterval(() => {
         const screen = currentScreen();
 
@@ -891,6 +1134,14 @@ if (screen === "notifications") {
           refreshCurrentScreen();
         }
       }, 2500);
+
+      setInterval(() => {
+        const screen = currentScreen();
+
+        if (screen === "notifications" || screen === "status") {
+          refreshCurrentScreen();
+        }
+      }, 5000);
     </script>
   </body>
 </html>
