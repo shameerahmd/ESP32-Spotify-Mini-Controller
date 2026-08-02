@@ -1,5 +1,6 @@
 #include <Arduino.h>
 
+#include "api_client.h"
 #include "config.h"
 #include "wifi_manager.h"
 
@@ -131,6 +132,7 @@ void setup()
     }
 
     DeskSyncWiFi::begin();
+    DeskSyncApi::begin();
 }
 
 
@@ -139,6 +141,7 @@ void loop()
     if (configurationIsValid())
     {
         DeskSyncWiFi::update();
+        DeskSyncApi::update();
     }
 
     delay(100);
