@@ -85,6 +85,159 @@ def health():
 
     return jsonify(response)
 
+@app.route("/device-state")
+def device_state():
+    response = {
+        "status": "online",
+        "timestamp": (
+            datetime.now()
+            .astimezone()
+            .isoformat(timespec="seconds")
+        ),
+        "spotify": {
+            "status": "offline",
+            "playing": False,
+        },
+        "system": None,
+        "notifications": {
+            "unread_count": 0,
+            "latest": None,
+        },
+    }
+
+    component_errors = {}
+
+    # Spotify state
+    try:
+        playback = sp.current_playback()
+
+        if (
+            playback is not None
+            and playback.get("item") is not None
+        ):
+            item = playback["item"]
+            artists = item.get("artists") or []
+            album = item.get("album") or {}
+            device = playback.get("device") or {}
+
+            artist_name = ", ".join(
+                artist.get("name", "")
+                for artist in artists
+                if artist.get("name")
+            )
+
+            response["spotify"] = {
+                "status": "online",
+                "playing": bool(
+                    playback.get("is_playing")
+                ),
+                "title": item.get("name", ""),
+                "artist": artist_name,
+                "album": album.get("name", ""),
+                "progress_ms": (
+                    playback.get("progress_ms")
+                    or 0
+                ),
+                "duration_ms": (
+                    item.get("duration_ms")
+                    or 0
+                ),
+                "volume": device.get(
+                    "volume_percent"
+                ),
+                "device": device.get("name"),
+            }
+
+    except Exception as error:
+        response["spotify"] = {
+            "status": "error",
+            "playing": False,
+        }
+
+        component_errors["spotify"] = str(error)
+
+    # PC system state
+    try:
+        system_stats = get_system_stats()
+
+        cpu = system_stats.get("cpu") or {}
+        memory = system_stats.get("memory") or {}
+        disk = system_stats.get("disk") or {}
+        network = system_stats.get("network") or {}
+        uptime = system_stats.get("uptime") or {}
+        battery = system_stats.get("battery")
+
+        response["system"] = {
+            "status": "online",
+            "cpu_percent": cpu.get("percent"),
+            "memory_percent": memory.get("percent"),
+            "disk_percent": disk.get("percent"),
+            "uptime": uptime.get("readable"),
+            "network_received_mb": network.get(
+                "received_mb"
+            ),
+            "network_sent_mb": network.get(
+                "sent_mb"
+            ),
+            "battery": battery,
+        }
+
+    except Exception as error:
+        response["system"] = {
+            "status": "error",
+        }
+
+        component_errors["system"] = str(error)
+
+    # Notification state
+    try:
+        latest_notification = get_notification(0)
+
+        latest_data = None
+
+        if latest_notification is not None:
+            latest_data = {
+                "id": latest_notification.get("id"),
+                "title": latest_notification.get(
+                    "title"
+                ),
+                "message": latest_notification.get(
+                    "message"
+                ),
+                "source": latest_notification.get(
+                    "source"
+                ),
+                "created_at": latest_notification.get(
+                    "created_at"
+                ),
+                "read": latest_notification.get(
+                    "read"
+                ),
+            }
+
+        response["notifications"] = {
+            "status": "online",
+            "unread_count": unread_count(),
+            "latest": latest_data,
+        }
+
+    except Exception as error:
+        response["notifications"] = {
+            "status": "error",
+            "unread_count": 0,
+            "latest": None,
+        }
+
+        component_errors["notifications"] = str(
+            error
+        )
+
+    if component_errors:
+        response["status"] = "degraded"
+        response["errors"] = component_errors
+
+    return jsonify(response)
+
 @app.route("/simulator")
 def simulator():
     return render_template("simulator.html")
