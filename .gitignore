@@ -28,3 +28,5 @@ bridge/data/
 *.db-journal
 *.db-shm
 *.db-wal
+# ESP32 private configuration
+esp32/include/config.h
