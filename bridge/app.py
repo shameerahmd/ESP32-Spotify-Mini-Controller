@@ -1,3 +1,14 @@
+import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+from demo_data import (
+    demo_device_state,
+    demo_lyrics,
+    demo_notification,
+    demo_song,
+    demo_system,
+)
 from datetime import datetime
 
 from flask import Flask, jsonify, request, render_template
@@ -17,6 +28,21 @@ from notification_store import (
     mark_notification_read,
     unread_count,
 )
+load_dotenv(
+    Path(__file__).resolve().parent / ".env"
+)
+
+DEMO_MODE = (
+    os.getenv(
+        "DESKSYNC_DEMO_MODE",
+        "false",
+    )
+    .strip()
+    .lower()
+    in {"1", "true", "yes", "on"}
+)
+
+demo_notification_is_read = False
 
 app = Flask(__name__)
 
@@ -27,6 +53,22 @@ def home():
 
 @app.route("/health")
 def health():
+    if DEMO_MODE:
+        return jsonify({
+            "status": "online",
+            "demo_mode": True,
+            "timestamp": (
+                datetime.now()
+                .astimezone()
+                .isoformat(timespec="seconds")
+            ),
+            "components": {
+                "bridge": True,
+                "spotify": True,
+                "database": True,
+                "system_monitor": True,
+            },
+        })
     components = {
         "bridge": True,
         "spotify": False,
@@ -87,6 +129,11 @@ def health():
 
 @app.route("/device-state")
 def device_state():
+    if DEMO_MODE:
+        return jsonify({
+            **demo_device_state(),
+        })
+
     response = {
         "status": "online",
         "timestamp": (
@@ -245,6 +292,12 @@ def simulator():
 
 @app.route("/song")
 def song():
+    if DEMO_MODE:
+        return jsonify({
+            **demo_song(),
+            "demo_mode": True,
+        })
+
     playback = sp.current_playback()
 
     if playback is None or playback.get("item") is None:
@@ -353,6 +406,12 @@ def toggle():
 
 @app.route("/system")
 def system_status():
+    if DEMO_MODE:
+        return jsonify({
+            "status": "online",
+            "demo_mode": True,
+            "pc": demo_system(),
+        })
     return jsonify({
         "status": "online",
         "pc": get_system_stats(),
@@ -361,6 +420,12 @@ def system_status():
 
 @app.route("/lyrics")
 def current_lyrics():
+    if DEMO_MODE:
+        return jsonify({
+            **demo_lyrics(),
+            "demo_mode": True,
+        })
+
     playback = sp.current_playback()
 
     if playback is None or playback.get("item") is None:
@@ -466,6 +531,23 @@ def current_lyrics():
 
 @app.route("/notifications", methods=["GET"])
 def notification_details():
+    if DEMO_MODE:
+        notification = demo_notification()
+
+        notification["read"] = (
+            demo_notification_is_read
+        )
+
+        return jsonify({
+            "status": "online",
+            "demo_mode": True,
+            "notification": notification,
+            "unread_count": (
+                0
+                if demo_notification_is_read
+                else 1
+            ),
+        })
     notification_index = request.args.get(
         "index",
         default=0,
@@ -535,6 +617,7 @@ def create_notification():
 
 @app.route("/notifications/read", methods=["POST"])
 def read_notification():
+    global demo_notification_is_read
     payload = request.get_json(
         silent=True
     ) or {}
@@ -542,7 +625,22 @@ def read_notification():
     notification_id = str(
         payload.get("id", "")
     ).strip()
+    if (
+        DEMO_MODE
+        and notification_id
+        == "demo-notification"
+    ):
+        demo_notification_is_read = True
 
+        notification = demo_notification()
+        notification["read"] = True
+
+        return jsonify({
+            "status": "success",
+            "demo_mode": True,
+            "notification": notification,
+            "unread_count": 0,
+        })
     if not notification_id:
         return jsonify({
             "status": "error",
