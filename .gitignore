@@ -30,3 +30,5 @@ bridge/data/
 *.db-wal
 # ESP32 private configuration
 esp32/include/config.h
+# PlatformIO compilation database
+esp32/compile_commands.json
