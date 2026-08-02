@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Flask, jsonify, request, render_template
 
 from lyrics_service import (
@@ -10,6 +12,7 @@ from system_monitor import get_system_stats
 from notification_store import (
     add_notification,
     clear_notifications,
+    database_connection,
     get_notification,
     mark_notification_read,
     unread_count,
@@ -21,6 +24,66 @@ app = Flask(__name__)
 @app.route("/")
 def home():
     return "DeskSync Bridge Running!"
+
+@app.route("/health")
+def health():
+    components = {
+        "bridge": True,
+        "spotify": False,
+        "database": False,
+        "system_monitor": False,
+    }
+
+    errors = {}
+
+    try:
+        sp.current_playback()
+        components["spotify"] = True
+
+    except Exception as error:
+        errors["spotify"] = str(error)
+
+    try:
+        with database_connection() as connection:
+            connection.execute(
+                "SELECT 1"
+            ).fetchone()
+
+        components["database"] = True
+
+    except Exception as error:
+        errors["database"] = str(error)
+
+    try:
+        system_stats = get_system_stats()
+
+        components["system_monitor"] = bool(
+            system_stats
+        )
+
+    except Exception as error:
+        errors["system_monitor"] = str(error)
+
+    overall_status = (
+        "online"
+        if all(components.values())
+        else "degraded"
+    )
+
+    response = {
+        "status": overall_status,
+        "timestamp": (
+            datetime.now()
+            .astimezone()
+            .isoformat(timespec="seconds")
+        ),
+        "components": components,
+    }
+
+    if errors:
+        response["errors"] = errors
+
+    return jsonify(response)
 
 @app.route("/simulator")
 def simulator():
