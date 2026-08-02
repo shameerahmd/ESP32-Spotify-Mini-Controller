@@ -72,8 +72,8 @@ DESKSYNC_API_KEY = os.getenv(
 LOCAL_ADDRESSES = {
     "127.0.0.1",
     "::1",
+    "::ffff:127.0.0.1",
 }
-
 
 demo_notification_is_read = False
 
@@ -461,7 +461,21 @@ def simulator():
         api_key=DESKSYNC_API_KEY,
     )
 
+@app.route("/oled-preview")
+def oled_preview():
+    if request.remote_addr not in LOCAL_ADDRESSES:
+        return jsonify({
+            "status": "forbidden",
+            "message": (
+                "The DeskSync OLED preview is "
+                "available only on the local computer."
+            ),
+        }), 403
 
+    return render_template(
+        "oled_preview.html",
+        api_key=DESKSYNC_API_KEY,
+    )
 # ---------------------------------------------------------
 # Spotify information and controls
 # ---------------------------------------------------------

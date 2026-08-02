@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <title>DeskSync OLED Preview</title>
+
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        background: #111827;
+        color: #f9fafb;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+
+      .device {
+        width: 610px;
+        max-width: 100%;
+        padding: 26px;
+        border: 1px solid #374151;
+        border-radius: 24px;
+        background: #1f2937;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+      }
+
+      h1 {
+        margin: 0;
+        text-align: center;
+        font-size: 23px;
+      }
+
+      .subtitle {
+        margin: 7px 0 18px;
+        text-align: center;
+        color: #9ca3af;
+        font-size: 13px;
+      }
+
+      .status-bar {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+        color: #9ca3af;
+        font-size: 12px;
+      }
+
+      .oled-frame {
+        width: 100%;
+        padding: 18px;
+        border: 8px solid #374151;
+        border-radius: 14px;
+        background: #030712;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        aspect-ratio: 2 / 1;
+        border: 1px solid #111827;
+        background: #000000;
+        image-rendering: pixelated;
+        image-rendering: crisp-edges;
+      }
+
+      .resolution {
+        margin-top: 10px;
+        text-align: center;
+        color: #6b7280;
+        font-size: 11px;
+      }
+
+      .buttons {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        margin-top: 22px;
+      }
+
+      button {
+        height: 62px;
+        border: none;
+        border-radius: 14px;
+        background: #374151;
+        color: #ffffff;
+        font-size: 23px;
+        cursor: pointer;
+        user-select: none;
+        touch-action: none;
+      }
+
+      button:hover {
+        background: #4b5563;
+      }
+
+      button:active {
+        transform: scale(0.97);
+        background: #2563eb;
+      }
+
+      .button-name {
+        display: block;
+        margin-top: 3px;
+        color: #9ca3af;
+        font-size: 10px;
+      }
+
+      .instructions {
+        margin-top: 20px;
+        color: #9ca3af;
+        font-size: 12px;
+        line-height: 1.7;
+      }
+
+      .online {
+        color: #34d399;
+      }
+
+      .offline {
+        color: #f87171;
+      }
+
+      .warning {
+        color: #fbbf24;
+      }
+
+      .links {
+        margin-top: 18px;
+        text-align: center;
+        font-size: 13px;
+      }
+
+      .links a {
+        color: #60a5fa;
+        text-decoration: none;
+      }
+
+      .links a:hover {
+        text-decoration: underline;
+      }
+
+      @media (max-width: 620px) {
+        body {
+          padding: 10px;
+        }
+
+        .device {
+          padding: 18px;
+        }
+
+        .oled-frame {
+          padding: 10px;
+          border-width: 5px;
+        }
+      }
+    </style>
+  </head>
+
+  <body data-api-key="{{ api_key | e }}">
+    <div class="device">
+      <h1>DeskSync OLED Preview</h1>
+
+      <div class="subtitle">Actual drawing area: 128 × 64 pixels</div>
+
+      <div class="status-bar">
+        <span id="screenName">Spotify</span>
+        <span id="connectionStatus"> Connecting... </span>
+      </div>
+
+      <div class="oled-frame">
+        <canvas id="oled" width="128" height="64"></canvas>
+
+        <div class="resolution">Enlarged preview of the 128×64 OLED</div>
+      </div>
+
+      <div class="buttons">
+        <button id="leftButton" type="button" aria-label="Left button">
+          ◀
+          <span class="button-name"> LEFT </span>
+        </button>
+
+        <button id="centerButton" type="button" aria-label="Centre button">
+          ●
+          <span class="button-name"> CENTRE </span>
+        </button>
+
+        <button id="rightButton" type="button" aria-label="Right button">
+          ▶
+          <span class="button-name"> RIGHT </span>
+        </button>
+      </div>
+
+      <div class="instructions">
+        Short press performs the current screen action.<br />
+
+        Long Left: Previous screen<br />
+
+        Long Right: Next screen<br />
+
+        Long Centre: Return to Spotify<br /><br />
+
+        Spotify: Previous / Play-Pause / Next<br />
+
+        Clock: 12-24h / Seconds / Date style<br />
+
+        Lyrics: Previous line / Auto-Manual / Next line<br />
+
+        PC Monitor: Previous metric / Refresh / Next metric<br />
+
+        Notifications: Newer / Mark read / Older
+      </div>
+
+      <div class="links">
+        <a href="/simulator"> Open full DeskSync simulator </a>
+      </div>
+    </div>
+
+    <script>
+      const DESKSYNC_API_KEY = document.body.dataset.apiKey || "";
+
+      const canvas = document.getElementById("oled");
+
+      const context = canvas.getContext("2d");
+
+      context.imageSmoothingEnabled = false;
+
+      const SCREEN_WIDTH = 128;
+      const SCREEN_HEIGHT = 64;
+
+      const screens = [
+        "spotify",
+        "clock",
+        "lyrics",
+        "system",
+        "notifications",
+        "status",
+      ];
+
+      const screenLabels = {
+        spotify: "Spotify",
+        clock: "Clock",
+        lyrics: "Lyrics",
+        system: "PC Monitor",
+        notifications: "Notifications",
+        status: "Status",
+      };
+
+      const systemMetrics = [
+        "cpu",
+        "memory",
+        "disk",
+        "battery",
+        "network",
+        "uptime",
+      ];
+
+      let screenIndex = 0;
+      let systemMetricIndex = 0;
+
+      let clockUse24Hour = false;
+      let clockShowSeconds = true;
+      let clockCompactDate = false;
+
+      let lyricManualMode = false;
+      let lyricIndex = 0;
+      let automaticLyricIndex = 0;
+
+      let notificationIndex = 0;
+      let currentNotificationId = null;
+
+      const screenNameElement = document.getElementById("screenName");
+
+      const connectionStatusElement =
+        document.getElementById("connectionStatus");
+
+      function currentScreen() {
+        return screens[screenIndex];
+      }
+
+      function setConnectionStatus(text, className) {
+        connectionStatusElement.textContent = text;
+
+        connectionStatusElement.className = className || "";
+      }
+
+      function clearDisplay() {
+        context.fillStyle = "#000000";
+
+        context.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+
+        context.fillStyle = "#ffffff";
+        context.strokeStyle = "#ffffff";
+        context.lineWidth = 1;
+        context.textBaseline = "top";
+      }
+
+      function setFont(size = 8, bold = false) {
+        context.font = `${bold ? "bold " : ""}` + `${size}px monospace`;
+      }
+
+      function fitText(value, maxWidth) {
+        let text = value === null || value === undefined ? "" : String(value);
+
+        if (context.measureText(text).width <= maxWidth) {
+          return text;
+        }
+
+        while (
+          text.length > 1 &&
+          context.measureText(text + "...").width > maxWidth
+        ) {
+          text = text.slice(0, -1);
+        }
+
+        return text + "...";
+      }
+
+      function drawText(
+        text,
+        x,
+        y,
+        maxWidth = SCREEN_WIDTH - x,
+        size = 8,
+        bold = false,
+      ) {
+        setFont(size, bold);
+
+        context.fillText(fitText(text, maxWidth), x, y);
+      }
+
+      function drawCenteredText(text, y, size = 8, bold = false) {
+        setFont(size, bold);
+
+        const width = context.measureText(text).width;
+
+        const x = Math.max(0, Math.floor((SCREEN_WIDTH - width) / 2));
+
+        context.fillText(fitText(text, SCREEN_WIDTH), x, y);
+      }
+
+      function wrapText(value, maxWidth, maxLines) {
+        const text = value === null || value === undefined ? "" : String(value);
+
+        const words = text.split(/\s+/);
+
+        const lines = [];
+        let currentLine = "";
+
+        setFont(8, false);
+
+        for (const word of words) {
+          const candidate = currentLine ? `${currentLine} ${word}` : word;
+
+          if (context.measureText(candidate).width <= maxWidth) {
+            currentLine = candidate;
+            continue;
+          }
+
+          if (currentLine) {
+            lines.push(currentLine);
+          }
+
+          currentLine = word;
+
+          if (lines.length >= maxLines) {
+            break;
+          }
+        }
+
+        if (currentLine && lines.length < maxLines) {
+          lines.push(currentLine);
+        }
+
+        if (words.length > 0 && lines.length === maxLines) {
+          lines[maxLines - 1] = fitText(lines[maxLines - 1], maxWidth);
+        }
+
+        return lines;
+      }
+
+      function drawHeader(title, rightText = "") {
+        drawText(String(title).toUpperCase(), 1, 1, 88, 7, true);
+
+        if (rightText) {
+          setFont(7, false);
+
+          const fitted = fitText(rightText, 36);
+
+          const width = context.measureText(fitted).width;
+
+          context.fillText(fitted, SCREEN_WIDTH - width - 1, 1);
+        }
+
+        context.beginPath();
+        context.moveTo(0, 10);
+        context.lineTo(SCREEN_WIDTH, 10);
+        context.stroke();
+      }
+
+      function drawProgressBar(progress, duration, y) {
+        const safeDuration = Number(duration || 0);
+
+        const safeProgress = Number(progress || 0);
+
+        const percentage =
+          safeDuration > 0
+            ? Math.min(1, Math.max(0, safeProgress / safeDuration))
+            : 0;
+
+        context.strokeRect(1, y, 126, 5);
+
+        context.fillRect(2, y + 1, Math.floor(124 * percentage), 3);
+      }
+
+      function formatTime(milliseconds) {
+        const secondsTotal = Math.floor(Number(milliseconds || 0) / 1000);
+
+        const minutes = Math.floor(secondsTotal / 60);
+
+        const seconds = secondsTotal % 60;
+
+        return String(minutes) + ":" + String(seconds).padStart(2, "0");
+      }
+
+      async function fetchJson(url, options = {}) {
+        try {
+          const requestOptions = {
+            ...options,
+            headers: {
+              ...(options.headers || {}),
+              "X-DeskSync-Key": DESKSYNC_API_KEY,
+            },
+          };
+
+          const response = await fetch(url, requestOptions);
+
+          let data;
+
+          try {
+            data = await response.json();
+          } catch (error) {
+            data = {
+              status: "error",
+              message: "Invalid bridge response",
+            };
+          }
+
+          if (response.status === 401) {
+            setConnectionStatus("Unauthorized", "offline");
+          } else if (response.status === 503) {
+            setConnectionStatus("API key missing", "warning");
+          } else {
+            setConnectionStatus("Bridge online", "online");
+          }
+
+          return {
+            ok: response.ok,
+            statusCode: response.status,
+            data: data,
+          };
+        } catch (error) {
+          setConnectionStatus("Bridge offline", "offline");
+
+          return {
+            ok: false,
+            statusCode: 0,
+            data: {
+              status: "error",
+              message: error.message,
+            },
+          };
+        }
+      }
+
+      function drawErrorScreen(title, message) {
+        clearDisplay();
+        drawHeader(title, "ERR");
+
+        drawCenteredText("UNAVAILABLE", 18, 10, true);
+
+        const lines = wrapText(message, 122, 3);
+
+        lines.forEach((line, index) => {
+          drawText(line, 3, 35 + index * 9, 122, 7);
+        });
+      }
+
+      async function showSpotify() {
+        const result = await fetchJson("/song");
+
+        const data = result.data || {};
+
+        if (!result.ok || data.status !== "online") {
+          drawErrorScreen("Spotify", data.message || "Start Spotify playback");
+
+          return;
+        }
+
+        clearDisplay();
+
+        drawHeader("Spotify", data.playing ? "PLAY" : "PAUSE");
+
+        drawText(data.title || "Unknown title", 2, 13, 124, 9, true);
+
+        drawText(data.artist || "Unknown artist", 2, 25, 124, 8);
+
+        const timeText =
+          `${formatTime(data.progress)}` + `/` + `${formatTime(data.duration)}`;
+
+        drawText(timeText, 2, 38, 75, 7);
+
+        const volumeText =
+          data.volume === null || data.volume === undefined
+            ? "VOL --"
+            : `VOL ${data.volume}`;
+
+        drawText(volumeText, 86, 38, 40, 7);
+
+        drawProgressBar(data.progress, data.duration, 48);
+
+        drawText(data.device || "Spotify device", 2, 56, 124, 7);
+      }
+
+      function showClock() {
+        const now = new Date();
+
+        clearDisplay();
+
+        drawHeader("Clock", clockUse24Hour ? "24H" : "12H");
+
+        const timeOptions = {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: !clockUse24Hour,
+        };
+
+        if (clockShowSeconds) {
+          timeOptions.second = "2-digit";
+        }
+
+        const timeText = now.toLocaleTimeString(undefined, timeOptions);
+
+        drawCenteredText(timeText, 16, clockShowSeconds ? 15 : 18, true);
+
+        let dateText;
+
+        if (clockCompactDate) {
+          dateText = now.toLocaleDateString(undefined, {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+          });
+        } else {
+          dateText = now.toLocaleDateString(undefined, {
+            weekday: "short",
+            day: "2-digit",
+            month: "short",
+          });
+        }
+
+        drawCenteredText(dateText, 40, 9, false);
+
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        drawCenteredText(timezone, 54, 7, false);
+
+        setConnectionStatus("Local clock", "online");
+      }
+
+      async function showLyrics() {
+        let endpoint = "/lyrics";
+
+        if (lyricManualMode) {
+          endpoint += `?index=${lyricIndex}`;
+        }
+
+        const result = await fetchJson(endpoint);
+
+        const data = result.data || {};
+
+        if (!result.ok || data.status !== "online") {
+          drawErrorScreen("Lyrics", data.message || "Lyrics not available");
+
+          return;
+        }
+
+        const lyrics = data.lyrics || {};
+
+        automaticLyricIndex = Number(lyrics.index || 0);
+
+        if (!lyricManualMode) {
+          lyricIndex = automaticLyricIndex;
+        }
+
+        clearDisplay();
+
+        drawHeader("Lyrics", lyricManualMode ? "MAN" : "AUTO");
+
+        drawText(lyrics.previous || "", 2, 13, 124, 7);
+
+        const currentLines = wrapText(
+          lyrics.current || "Waiting for lyric",
+          124,
+          2,
+        );
+
+        currentLines.forEach((line, index) => {
+          drawText(line, 2, 24 + index * 10, 124, 8, true);
+        });
+
+        drawText(lyrics.next || "", 2, 46, 124, 7);
+
+        const lineNumber = Number(lyrics.index || 0) + 1;
+
+        drawText(`${lineNumber}/${lyrics.line_count || 0}`, 2, 56, 40, 7);
+
+        drawText(data.title || "", 42, 56, 84, 7);
+      }
+
+      async function showSystemMonitor() {
+        const result = await fetchJson("/system");
+
+        const data = result.data || {};
+
+        if (!result.ok || !data.pc) {
+          drawErrorScreen("PC Monitor", data.message || "PC data unavailable");
+
+          return;
+        }
+
+        const pc = data.pc;
+        const metric = systemMetrics[systemMetricIndex];
+
+        clearDisplay();
+
+        drawHeader("PC Monitor", metric.toUpperCase());
+
+        if (metric === "cpu") {
+          const cpu = pc.cpu || {};
+
+          drawCenteredText(`${cpu.percent ?? "--"}%`, 15, 22, true);
+
+          drawText("CPU USAGE", 36, 40, 70, 8);
+
+          drawText(`Cores ${cpu.physical_cores ?? "--"}`, 3, 54, 60, 7);
+
+          drawText(`Threads ${cpu.logical_cores ?? "--"}`, 67, 54, 59, 7);
+        }
+
+        if (metric === "memory") {
+          const memory = pc.memory || {};
+
+          drawCenteredText(`${memory.percent ?? "--"}%`, 15, 22, true);
+
+          drawText("MEMORY", 43, 40, 60, 8);
+
+          drawText(`${memory.used_gb ?? "--"}GB used`, 3, 53, 60, 7);
+
+          drawText(`${memory.total_gb ?? "--"}GB total`, 68, 53, 58, 7);
+        }
+
+        if (metric === "disk") {
+          const disk = pc.disk || {};
+
+          drawCenteredText(`${disk.percent ?? "--"}%`, 15, 22, true);
+
+          drawText("DISK", 50, 40, 40, 8);
+
+          drawText(`${disk.free_gb ?? "--"}GB free`, 3, 53, 74, 7);
+
+          drawText(disk.drive || "", 88, 53, 38, 7);
+        }
+
+        if (metric === "battery") {
+          const battery = pc.battery;
+
+          if (battery) {
+            drawCenteredText(`${battery.percent ?? "--"}%`, 15, 22, true);
+
+            drawCenteredText(
+              battery.charging || battery.plugged_in
+                ? "CHARGING"
+                : "ON BATTERY",
+              43,
+              8,
+              false,
+            );
+          } else {
+            drawCenteredText("NO BATTERY", 22, 13, true);
+
+            drawCenteredText("Desktop PC", 44, 8);
+          }
+        }
+
+        if (metric === "network") {
+          const network = pc.network || {};
+
+          drawText("RECEIVED", 3, 17, 60, 8, true);
+
+          drawText(`${network.received_mb ?? "--"} MB`, 3, 29, 122, 10);
+
+          drawText("SENT", 3, 43, 40, 8, true);
+
+          drawText(`${network.sent_mb ?? "--"} MB`, 42, 43, 84, 8);
+        }
+
+        if (metric === "uptime") {
+          const uptime = pc.uptime || {};
+
+          drawCenteredText("PC UPTIME", 18, 9, true);
+
+          drawCenteredText(uptime.readable || "--", 35, 15, true);
+        }
+      }
+
+      async function showNotifications() {
+        const result = await fetchJson(
+          "/notifications?index=" + notificationIndex,
+        );
+
+        const data = result.data || {};
+
+        if (!result.ok || data.status === "empty" || !data.notification) {
+          currentNotificationId = null;
+          notificationIndex = 0;
+
+          clearDisplay();
+          drawHeader("Notifications", "0");
+
+          drawCenteredText("NO", 18, 14, true);
+
+          drawCenteredText("NOTIFICATIONS", 35, 12, true);
+
+          return;
+        }
+
+        const notification = data.notification;
+
+        notificationIndex = Number(notification.index || 0);
+
+        currentNotificationId = notification.id;
+
+        clearDisplay();
+
+        drawHeader("Notification", notification.read ? "READ" : "NEW");
+
+        drawText(notification.title || "", 2, 13, 124, 9, true);
+
+        const messageLines = wrapText(notification.message || "", 124, 3);
+
+        messageLines.forEach((line, index) => {
+          drawText(line, 2, 25 + index * 9, 124, 7);
+        });
+
+        drawText(notification.source || "", 2, 54, 82, 7);
+
+        drawText(
+          `${Number(notification.index || 0) + 1}` +
+            `/` +
+            `${notification.count || 1}`,
+          92,
+          54,
+          34,
+          7,
+        );
+      }
+
+      async function showStatus() {
+        const result = await fetchJson("/device-state");
+
+        const data = result.data || {};
+
+        if (!result.ok) {
+          drawErrorScreen("Status", data.message || "Status unavailable");
+
+          return;
+        }
+
+        const spotify = data.spotify || {};
+
+        const system = data.system || {};
+
+        const notifications = data.notifications || {};
+
+        clearDisplay();
+
+        drawHeader("DeskSync", data.status === "online" ? "OK" : "WARN");
+
+        drawText("Bridge", 2, 14, 65, 8);
+
+        drawText(data.status || "--", 76, 14, 50, 8, true);
+
+        drawText("Spotify", 2, 25, 65, 8);
+
+        drawText(spotify.status || "--", 76, 25, 50, 8, true);
+
+        drawText("PC Monitor", 2, 36, 65, 8);
+
+        drawText(system.status || "--", 76, 36, 50, 8, true);
+
+        drawText("Unread", 2, 47, 65, 8);
+
+        drawText(String(notifications.unread_count || 0), 76, 47, 50, 8, true);
+
+        drawText(
+          data.demo_mode ? "DEMO MODE" : "LIVE MODE",
+          2,
+          57,
+          124,
+          7,
+          true,
+        );
+      }
+
+      async function refreshCurrentScreen() {
+        const screen = currentScreen();
+
+        screenNameElement.textContent = screenLabels[screen];
+
+        if (screen === "spotify") {
+          await showSpotify();
+          return;
+        }
+
+        if (screen === "clock") {
+          showClock();
+          return;
+        }
+
+        if (screen === "lyrics") {
+          await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          await showSystemMonitor();
+          return;
+        }
+
+        if (screen === "notifications") {
+          await showNotifications();
+          return;
+        }
+
+        if (screen === "status") {
+          await showStatus();
+        }
+      }
+
+      async function callSpotifyCommand(endpoint) {
+        await fetchJson(endpoint);
+        await showSpotify();
+      }
+
+      async function previousScreen() {
+        screenIndex = (screenIndex - 1 + screens.length) % screens.length;
+
+        await refreshCurrentScreen();
+      }
+
+      async function nextScreen() {
+        screenIndex = (screenIndex + 1) % screens.length;
+
+        await refreshCurrentScreen();
+      }
+
+      async function returnToSpotify() {
+        screenIndex = 0;
+        await refreshCurrentScreen();
+      }
+
+      async function leftShortPress() {
+        const screen = currentScreen();
+
+        if (screen === "spotify") {
+          await callSpotifyCommand("/previous");
+          return;
+        }
+
+        if (screen === "clock") {
+          clockUse24Hour = !clockUse24Hour;
+
+          showClock();
+          return;
+        }
+
+        if (screen === "lyrics") {
+          if (!lyricManualMode) {
+            lyricManualMode = true;
+            lyricIndex = automaticLyricIndex;
+          }
+
+          lyricIndex = Math.max(0, lyricIndex - 1);
+
+          await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          systemMetricIndex =
+            (systemMetricIndex - 1 + systemMetrics.length) %
+            systemMetrics.length;
+
+          await showSystemMonitor();
+          return;
+        }
+
+        if (screen === "notifications") {
+          notificationIndex = Math.max(0, notificationIndex - 1);
+
+          await showNotifications();
+          return;
+        }
+
+        await refreshCurrentScreen();
+      }
+
+      async function centerShortPress() {
+        const screen = currentScreen();
+
+        if (screen === "spotify") {
+          await callSpotifyCommand("/toggle");
+          return;
+        }
+
+        if (screen === "clock") {
+          clockShowSeconds = !clockShowSeconds;
+
+          showClock();
+          return;
+        }
+
+        if (screen === "lyrics") {
+          lyricManualMode = !lyricManualMode;
+
+          if (lyricManualMode) {
+            lyricIndex = automaticLyricIndex;
+          }
+
+          await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          await showSystemMonitor();
+          return;
+        }
+
+        if (screen === "notifications") {
+          if (!currentNotificationId) {
+            await showNotifications();
+            return;
+          }
+
+          await fetchJson("/notifications/read", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              id: currentNotificationId,
+            }),
+          });
+
+          await showNotifications();
+          return;
+        }
+
+        await refreshCurrentScreen();
+      }
+
+      async function rightShortPress() {
+        const screen = currentScreen();
+
+        if (screen === "spotify") {
+          await callSpotifyCommand("/next");
+          return;
+        }
+
+        if (screen === "clock") {
+          clockCompactDate = !clockCompactDate;
+
+          showClock();
+          return;
+        }
+
+        if (screen === "lyrics") {
+          if (!lyricManualMode) {
+            lyricManualMode = true;
+            lyricIndex = automaticLyricIndex;
+          }
+
+          lyricIndex += 1;
+
+          await showLyrics();
+          return;
+        }
+
+        if (screen === "system") {
+          systemMetricIndex = (systemMetricIndex + 1) % systemMetrics.length;
+
+          await showSystemMonitor();
+          return;
+        }
+
+        if (screen === "notifications") {
+          notificationIndex += 1;
+
+          await showNotifications();
+          return;
+        }
+
+        await refreshCurrentScreen();
+      }
+
+      function configureButton(buttonId, shortPressAction, longPressAction) {
+        const button = document.getElementById(buttonId);
+
+        let timer = null;
+        let longPressTriggered = false;
+
+        function cancelTimer() {
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+        }
+
+        button.addEventListener("pointerdown", (event) => {
+          event.preventDefault();
+
+          longPressTriggered = false;
+
+          button.setPointerCapture(event.pointerId);
+
+          timer = setTimeout(async () => {
+            longPressTriggered = true;
+            timer = null;
+
+            await longPressAction();
+          }, 700);
+        });
+
+        button.addEventListener("pointerup", async (event) => {
+          event.preventDefault();
+
+          cancelTimer();
+
+          if (button.hasPointerCapture(event.pointerId)) {
+            button.releasePointerCapture(event.pointerId);
+          }
+
+          if (!longPressTriggered) {
+            await shortPressAction();
+          }
+        });
+
+        button.addEventListener("pointercancel", cancelTimer);
+
+        button.addEventListener("contextmenu", (event) => {
+          event.preventDefault();
+        });
+      }
+
+      configureButton("leftButton", leftShortPress, previousScreen);
+
+      configureButton("centerButton", centerShortPress, returnToSpotify);
+
+      configureButton("rightButton", rightShortPress, nextScreen);
+
+      refreshCurrentScreen();
+
+      setInterval(() => {
+        if (currentScreen() === "clock") {
+          showClock();
+        }
+      }, 1000);
+
+      setInterval(() => {
+        const screen = currentScreen();
+
+        if (screen === "spotify" || (screen === "lyrics" && !lyricManualMode)) {
+          refreshCurrentScreen();
+        }
+      }, 2500);
+
+      setInterval(() => {
+        const screen = currentScreen();
+
+        if (screen === "notifications" || screen === "status") {
+          refreshCurrentScreen();
+        }
+      }, 5000);
+    </script>
+  </body>
+</html>
