@@ -32,3 +32,6 @@ bridge/data/
 esp32/include/config.h
 # PlatformIO compilation database
 esp32/compile_commands.json
+
+# VS Code workspace files
+*.code-workspace
